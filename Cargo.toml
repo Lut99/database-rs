@@ -10,7 +10,7 @@ description = "Provides various `Database`s that can be used as basis for use-ca
 [dependencies]
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 log = "0.4"
-mysql = { version = "24.0", optional = true }
+mysql = { version = "24.0", default-features = false, features = ["minimal"], optional = true }
 num-traits = "0.2"
 serde = "1.0"
 serde_json = "1.0"
@@ -20,3 +20,5 @@ serde_yaml = "0.9"
 
 [features]
 mysql = [ "dep:mysql" ]
+mysql-native-tls = [ "mysql", "mysql/native-tls" ]
+mysql-rustls-tls = [ "mysql", "mysql/rustls-tls" ]
