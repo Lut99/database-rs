@@ -1,0 +1,22 @@
+[package]
+name = "database"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Lut99" ]
+repository = "https://github.com/Lut99/database-rs"
+description = "Provides various `Database`s that can be used as basis for use-case specific database connectors."
+
+
+[dependencies]
+enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+log = "0.4"
+mysql = { version = "24.0", optional = true }
+num-traits = "0.2"
+serde = "1.0"
+serde_json = "1.0"
+toml = "0.8"
+serde_yaml = "0.9"
+
+
+[features]
+mysql = [ "dep:mysql" ]
