@@ -8,17 +8,19 @@ description = "Provides various `Database`s that can be used as basis for use-ca
 
 
 [dependencies]
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"], optional = true }
 log = "0.4"
 mysql = { version = "24.0", default-features = false, features = ["minimal"], optional = true }
-num-traits = "0.2"
-serde = "1.0"
+num-traits = { version = "0.2", optional = true }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-toml = "0.8"
 serde_yaml = "0.9"
+sqlite = { version = "0.32", optional = true }
+toml = "0.8"
 
 
 [features]
-mysql = [ "dep:mysql" ]
+mysql = [ "dep:enum-debug", "dep:mysql", "dep:num-traits" ]
 mysql-native-tls = [ "mysql", "mysql/native-tls" ]
 mysql-rustls-tls = [ "mysql", "mysql/rustls-tls" ]
+sqlite = [ "dep:sqlite" ]

@@ -4,7 +4,7 @@
 //  Created:
 //    17 Dec 2023, 18:33:54
 //  Last edited:
-//    17 Dec 2023, 19:59:04
+//    25 Dec 2023, 12:38:45
 //  Auto updated?
 //    Yes
 //
@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 
 use enum_debug::EnumDebug;
 use log::{debug, info};
+pub use mysql as backend;
 use mysql::{Opts, OptsBuilder, Pool};
 use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};

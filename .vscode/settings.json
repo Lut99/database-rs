@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.cargo.features": [
+        "sqlite"
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false,
+}
