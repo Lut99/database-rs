@@ -4,7 +4,7 @@
 //  Created:
 //    17 Dec 2023, 20:50:18
 //  Last edited:
-//    25 Dec 2023, 17:54:07
+//    25 Dec 2023, 18:08:42
 //  Auto updated?
 //    Yes
 //
@@ -35,6 +35,9 @@ pub enum Error<E> {
     DatabaseOpen { path: PathBuf, err: sqlite::Error },
     /// The initialization code failed.
     InitFailed { path: PathBuf, err: E },
+
+    /// Failed to create a new table.
+    CreateTable { query: String, err: sqlite::Error },
 }
 impl<E> Display for Error<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -43,6 +46,8 @@ impl<E> Display for Error<E> {
             ConfigLoad { .. } => write!(f, "Failed to load SQLite configuration file"),
             DatabaseOpen { path, .. } => write!(f, "Failed to open database file '{}'", path.display()),
             InitFailed { path, .. } => write!(f, "Failed to initialize SQLite database file '{}'", path.display()),
+
+            CreateTable { query, .. } => write!(f, "Failed to create new table using statement '{query}'"),
         }
     }
 }
@@ -53,6 +58,8 @@ impl<E: 'static + error::Error> error::Error for Error<E> {
             ConfigLoad { err } => Some(err),
             DatabaseOpen { err, .. } => Some(err),
             InitFailed { err, .. } => Some(err),
+
+            CreateTable { err, .. } => Some(err),
         }
     }
 }
@@ -94,7 +101,7 @@ impl Database {
     #[inline]
     pub fn new<F, E>(path: impl AsRef<Path>, init: F) -> Result<Self, Error<E>>
     where
-        F: FnOnce(&mut Self) -> Result<(), E>,
+        F: FnOnce(&Self) -> Result<(), E>,
         E: 'static + error::Error,
     {
         let path: &Path = path.as_ref();
@@ -111,10 +118,10 @@ impl Database {
         };
 
         // Run the init, if necessary
-        let mut this: Self = Self { conn };
+        let this: Self = Self { conn };
         if run_init {
             debug!("Initializing database at '{}' with {}", path.display(), type_name::<F>());
-            if let Err(err) = init(&mut this) {
+            if let Err(err) = init(&this) {
                 return Err(Error::InitFailed { path: path.into(), err });
             }
         }
@@ -136,7 +143,7 @@ impl Database {
     /// This function may error if we failed to read the given file or if we failed to connect to the given endpoint.
     pub fn from_path<F, E>(cfg_path: impl AsRef<Path>, init: F) -> Result<Self, Error<E>>
     where
-        F: FnOnce(&mut Self) -> Result<(), E>,
+        F: FnOnce(&Self) -> Result<(), E>,
         E: 'static + error::Error,
     {
         let cfg_path: &Path = cfg_path.as_ref();
@@ -150,5 +157,39 @@ impl Database {
             },
             Err(err) => Err(Error::ConfigLoad { err }),
         }
+    }
+
+    /// Creates a new table in the backend database.
+    ///
+    /// # Safety
+    /// Note that this query does _not_ use prepared statements, as SQL does not support preparing column names and types. Also, it's bad database design if the end user needs to dynamically create tables with custom stuff anyway.
+    ///
+    /// # Arguments
+    /// - `name`: The name of the table.
+    /// - `columns`: The columns (as name/type pairs) to create.
+    ///
+    /// # Errors
+    /// This function may error if we failed to create the given table.
+    pub fn create_table<K, V>(&self, name: impl Display, columns: impl IntoIterator<Item = (K, V)>) -> Result<(), Error<()>>
+    where
+        K: Display,
+        V: Display,
+    {
+        // Create the statement by doing weird insert shit.
+        let mut first: bool = true;
+        let mut query: String = format!("CREATE TABLE {name} (");
+        for (name, ty) in columns {
+            // Insert comma in all but the first column
+            if first {
+                first = false;
+            } else {
+                query.push_str(", ");
+            }
+            query.push_str(&format!("{name} {ty}"));
+        }
+        query.push(')');
+
+        // Alright now send the query to the DB
+        self.conn.execute(&query).map_err(|err| Error::CreateTable { query, err })
     }
 }
