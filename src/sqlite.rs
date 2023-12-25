@@ -4,7 +4,7 @@
 //  Created:
 //    17 Dec 2023, 20:50:18
 //  Last edited:
-//    25 Dec 2023, 18:08:42
+//    25 Dec 2023, 18:46:26
 //  Auto updated?
 //    Yes
 //
@@ -23,6 +23,7 @@ pub use sqlite as backend;
 use sqlite::Connection;
 
 use crate::common::load_config_file;
+use crate::sql::SqlColumnDef;
 
 
 /***** ERRORS *****/
@@ -166,28 +167,14 @@ impl Database {
     ///
     /// # Arguments
     /// - `name`: The name of the table.
-    /// - `columns`: The columns (as name/type pairs) to create.
+    /// - `col_defs`: The columns (as [`ToColumnDef`]s) to create.
     ///
     /// # Errors
     /// This function may error if we failed to create the given table.
-    pub fn create_table<K, V>(&self, name: impl Display, columns: impl IntoIterator<Item = (K, V)>) -> Result<(), Error<()>>
-    where
-        K: Display,
-        V: Display,
-    {
+    pub fn create_table<C: SqlColumnDef>(&self, name: impl Display, col_defs: impl IntoIterator<Item = C>) -> Result<(), Error<()>> {
         // Create the statement by doing weird insert shit.
-        let mut first: bool = true;
-        let mut query: String = format!("CREATE TABLE {name} (");
-        for (name, ty) in columns {
-            // Insert comma in all but the first column
-            if first {
-                first = false;
-            } else {
-                query.push_str(", ");
-            }
-            query.push_str(&format!("{name} {ty}"));
-        }
-        query.push(')');
+        let query: String =
+            format!("CREATE TABLE {} ({})", name, col_defs.into_iter().map(|d| d.to_sql().to_string()).collect::<Vec<String>>().join(", "));
 
         // Alright now send the query to the DB
         self.conn.execute(&query).map_err(|err| Error::CreateTable { query, err })
