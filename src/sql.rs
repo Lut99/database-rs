@@ -4,7 +4,7 @@
 //  Created:
 //    25 Dec 2023, 18:13:29
 //  Last edited:
-//    25 Dec 2023, 18:46:36
+//    26 Dec 2023, 21:29:08
 //  Auto updated?
 //    Yes
 //
@@ -47,21 +47,21 @@ pub mod errors {
 
 /***** FORMATTERS *****/
 /// Formats a type implementing [`SqlColumnType`] using [`SqlColumnType::column_type_fmt()`].
-pub struct ColumnTypeFormatter<'t, T: ?Sized> {
+pub struct SqlColumnTypeFormatter<'t, T: ?Sized> {
     /// The thing to format.
     obj: &'t T,
 }
-impl<'t, T: SqlColumnType> Display for ColumnTypeFormatter<'t, T> {
+impl<'t, T: SqlColumnType> Display for SqlColumnTypeFormatter<'t, T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult { self.obj.column_type_fmt(f) }
 }
 
 /// Formats a type implementing [`SqlColumnDef`] using [`SqlColumnDef::column_def_fmt()`].
-pub struct ColumnDefFormatter<'c, T: ?Sized> {
+pub struct SqlColumnDefFormatter<'c, T: ?Sized> {
     /// The thing to format.
     obj: &'c T,
 }
-impl<'c, T: SqlColumnDef> Display for ColumnDefFormatter<'c, T> {
+impl<'c, T: SqlColumnDef> Display for SqlColumnDefFormatter<'c, T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult { self.obj.column_def_fmt(f) }
 }
@@ -89,7 +89,7 @@ pub trait SqlColumnType {
     /// # Returns
     /// A [`ColumnTypeFormatter`] that implements [`Display`].
     #[inline]
-    fn to_sql(&self) -> ColumnTypeFormatter<Self> { ColumnTypeFormatter { obj: self } }
+    fn to_sql(&self) -> SqlColumnTypeFormatter<Self> { SqlColumnTypeFormatter { obj: self } }
 }
 
 /// Abstracts over possible ways to give the definition of a column.
@@ -110,7 +110,7 @@ pub trait SqlColumnDef {
     /// # Returns
     /// A [`ColumnDefFormatter`] that implements [`Display`].
     #[inline]
-    fn to_sql(&self) -> ColumnDefFormatter<Self> { ColumnDefFormatter { obj: self } }
+    fn to_sql(&self) -> SqlColumnDefFormatter<Self> { SqlColumnDefFormatter { obj: self } }
 }
 impl<K: Display, V: Display> SqlColumnDef for (K, V) {
     #[inline]
@@ -125,6 +125,8 @@ impl<K: Display, V: Display> SqlColumnDef for (K, V) {
 /// Lists all possible column types.
 #[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
 pub enum ColumnType {
+    /// A one-byte, whole number.
+    TinyInteger,
     /// A non-negative, whole number.
     UnsignedInteger,
 }
@@ -133,6 +135,7 @@ impl SqlColumnType for ColumnType {
     fn column_type_fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ColumnType::*;
         match self {
+            TinyInteger => write!(f, "TINYINT"),
             UnsignedInteger => write!(f, "INT UNSIGNED"),
         }
     }
@@ -143,6 +146,7 @@ impl FromStr for ColumnType {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            "tinyint" => Ok(Self::TinyInteger),
             "int unsigned" => Ok(Self::UnsignedInteger),
             _ => Err(errors::ColumnTypeParseError::UnknownIdentifier { raw: s.into() }),
         }
