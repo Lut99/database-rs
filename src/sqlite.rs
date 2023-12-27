@@ -4,7 +4,7 @@
 //  Created:
 //    17 Dec 2023, 20:50:18
 //  Last edited:
-//    25 Dec 2023, 18:46:26
+//    27 Dec 2023, 11:40:49
 //  Auto updated?
 //    Yes
 //
@@ -23,24 +23,24 @@ pub use sqlite as backend;
 use sqlite::Connection;
 
 use crate::common::load_config_file;
-use crate::sql::SqlColumnDef;
+use crate::sql::Statement;
 
 
 /***** ERRORS *****/
 /// Defines errors originating in the SQLite [`Database`]
 #[derive(Debug)]
-pub enum Error<E> {
+pub enum Error {
     /// Failed to load the config file.
     ConfigLoad { err: crate::common::Error },
     /// Failed to open the target database file.
     DatabaseOpen { path: PathBuf, err: sqlite::Error },
     /// The initialization code failed.
-    InitFailed { path: PathBuf, err: E },
+    InitFailed { path: PathBuf, err: Box<Self> },
 
     /// Failed to create a new table.
     CreateTable { query: String, err: sqlite::Error },
 }
-impl<E> Display for Error<E> {
+impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
@@ -52,13 +52,13 @@ impl<E> Display for Error<E> {
         }
     }
 }
-impl<E: 'static + error::Error> error::Error for Error<E> {
+impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         use Error::*;
         match self {
             ConfigLoad { err } => Some(err),
             DatabaseOpen { err, .. } => Some(err),
-            InitFailed { err, .. } => Some(err),
+            InitFailed { err, .. } => Some(&**err),
 
             CreateTable { err, .. } => Some(err),
         }
@@ -100,10 +100,9 @@ impl Database {
     /// # Errors
     /// This function may error if we failed to connect to the given endpoint.
     #[inline]
-    pub fn new<F, E>(path: impl AsRef<Path>, init: F) -> Result<Self, Error<E>>
+    pub fn new<F>(path: impl AsRef<Path>, init: F) -> Result<Self, Error>
     where
-        F: FnOnce(&Self) -> Result<(), E>,
-        E: 'static + error::Error,
+        F: FnOnce(&Self) -> Result<(), Error>,
     {
         let path: &Path = path.as_ref();
         info!("Initializing SQLite database at '{}'", path.display());
@@ -123,7 +122,7 @@ impl Database {
         if run_init {
             debug!("Initializing database at '{}' with {}", path.display(), type_name::<F>());
             if let Err(err) = init(&this) {
-                return Err(Error::InitFailed { path: path.into(), err });
+                return Err(Error::InitFailed { path: path.into(), err: Box::new(err) });
             }
         }
 
@@ -142,10 +141,9 @@ impl Database {
     ///
     /// # Errors
     /// This function may error if we failed to read the given file or if we failed to connect to the given endpoint.
-    pub fn from_path<F, E>(cfg_path: impl AsRef<Path>, init: F) -> Result<Self, Error<E>>
+    pub fn from_path<F>(cfg_path: impl AsRef<Path>, init: F) -> Result<Self, Error>
     where
-        F: FnOnce(&Self) -> Result<(), E>,
-        E: 'static + error::Error,
+        F: FnOnce(&Self) -> Result<(), Error>,
     {
         let cfg_path: &Path = cfg_path.as_ref();
         info!("Initializing SQLite database by reading the options from '{}'", cfg_path.display());
@@ -160,23 +158,14 @@ impl Database {
         }
     }
 
-    /// Creates a new table in the backend database.
+    /// Executes the given SQL [`Statement`] on the backend.
     ///
-    /// # Safety
-    /// Note that this query does _not_ use prepared statements, as SQL does not support preparing column names and types. Also, it's bad database design if the end user needs to dynamically create tables with custom stuff anyway.
+    /// Any results of the query are _discarded_.
     ///
     /// # Arguments
-    /// - `name`: The name of the table.
-    /// - `col_defs`: The columns (as [`ToColumnDef`]s) to create.
+    /// - `stmt`: The [`Statement`] to execute.
     ///
     /// # Errors
-    /// This function may error if we failed to create the given table.
-    pub fn create_table<C: SqlColumnDef>(&self, name: impl Display, col_defs: impl IntoIterator<Item = C>) -> Result<(), Error<()>> {
-        // Create the statement by doing weird insert shit.
-        let query: String =
-            format!("CREATE TABLE {} ({})", name, col_defs.into_iter().map(|d| d.to_sql().to_string()).collect::<Vec<String>>().join(", "));
-
-        // Alright now send the query to the DB
-        self.conn.execute(&query).map_err(|err| Error::CreateTable { query, err })
-    }
+    /// This function errors if we failed to execute the given `stmt` for some reason.
+    pub fn execute(&self, stmt: impl Into<Statement>) -> Result<(), Error> { Ok(()) }
 }
