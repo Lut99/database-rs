@@ -4,7 +4,7 @@
 //  Created:
 //    27 Dec 2023, 11:33:39
 //  Last edited:
-//    30 Dec 2023, 12:38:18
+//    30 Dec 2023, 12:58:24
 //  Auto updated?
 //    Yes
 //
@@ -260,7 +260,7 @@ impl ToSql for StatementCreateTable {
         }
 
         // Write the closing parenthesis, end
-        write!(f, "}};")
+        write!(f, ");")
     }
 }
 
