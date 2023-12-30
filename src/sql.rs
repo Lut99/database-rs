@@ -4,7 +4,7 @@
 //  Created:
 //    27 Dec 2023, 11:33:39
 //  Last edited:
-//    27 Dec 2023, 12:28:59
+//    30 Dec 2023, 12:11:57
 //  Auto updated?
 //    Yes
 //
@@ -17,9 +17,20 @@ use std::fmt::{Display, Formatter, Result as FResult};
 
 use chrono::{DateTime, Utc};
 use enum_debug::EnumDebug;
+use num_traits::AsPrimitive;
 
 
 /***** SERIALIZATION *****/
+/// Formats an [`ToSql`]-enabled type to some formatter.
+pub struct ToSqlFormatter<'o, O> {
+    /// The object to serialize.
+    obj: &'o O,
+}
+impl<'o, O: ToSql> Display for ToSqlFormatter<'o, O> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult { self.obj.fmt_sql(f) }
+}
+
 /// Implemented for all nodes in the SQL AST.
 pub trait ToSql {
     /// Formats this node to an SQL string.
@@ -30,16 +41,6 @@ pub trait ToSql {
     /// # Errors
     /// This function may fail if we failed to write to the formatter.
     fn fmt_sql(&self, f: &mut Formatter) -> FResult;
-}
-
-/// Formats an [`ToSql`]-enabled type to some formatter.
-pub struct ToSqlFormatter<'o, O> {
-    /// The object to serialize.
-    obj: &'o O,
-}
-impl<'o, O: ToSql> Display for ToSqlFormatter<'o, O> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult { self.obj.fmt_sql(f) }
 }
 
 /// Allows a given [`ToSql`]-enabled type to be serialized to a formatter.
@@ -82,6 +83,31 @@ pub enum Statement {
     /// ```
     UseDatabase(StatementUseDatabase),
 }
+impl ToSql for Statement {
+    #[inline]
+    fn fmt_sql(&self, f: &mut Formatter) -> FResult {
+        match self {
+            Self::CreateTable(ct) => ct.fmt_sql(f),
+            Self::UseDatabase(ud) => ud.fmt_sql(f),
+        }
+    }
+}
+impl AsRef<Statement> for Statement {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<Statement> for Statement {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self { self }
+}
+impl From<&Statement> for Statement {
+    #[inline]
+    fn from(value: &Self) -> Self { value.clone() }
+}
+impl From<&mut Statement> for Statement {
+    #[inline]
+    fn from(value: &mut Self) -> Self { value.clone() }
+}
 
 
 
@@ -96,6 +122,29 @@ pub struct StatementCreateTable {
     pub name: String,
     /// The definitions for each column in the table.
     pub cols: Vec<ColumnDef>,
+}
+impl ToSql for StatementCreateTable {
+    fn fmt_sql(&self, f: &mut Formatter) -> FResult {
+        // Write the statement up to the columns
+        write!(f, "CREATE TABLE \"{}\" (", self.name)?;
+
+        // Serialize the columns
+        let mut first: bool = true;
+        for col in &self.cols {
+            // Write the separator
+            if first {
+                first = false;
+            } else {
+                write!(f, ", ")?;
+            }
+
+            // Write the column definition
+            col.fmt_sql(f)?;
+        }
+
+        // Write the closing parenthesis, end
+        write!(f, "}};")
+    }
 }
 
 /// Describes how to define a column in statements like [`StatementCreateTable`].
@@ -134,6 +183,115 @@ impl ColumnDef {
             not_null: false,
             default: None,
         }
+    }
+
+    /// Changes the name of this column.
+    ///
+    /// # Arguments
+    /// - `name`: The name to change into.
+    ///.
+    /// # Returns
+    /// Self for chaining.
+    #[inline]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    /// Changes the type of this column.
+    ///
+    /// # Arguments
+    /// - `ty`: The type to change into.
+    ///.
+    /// # Returns
+    /// Self for chaining.
+    ///
+    /// # Panics
+    /// If a `default` is given (i.e., [`Some`]) and the new type of this column is not compatible with the default's type, then this function will panic.
+    #[inline]
+    pub fn ty(mut self, ty: impl Into<Type>) -> Self {
+        let ty: Type = ty.into();
+        if let Some(default) = &self.default {
+            if !default.ty().compatible_with(&ty) {
+                panic!(
+                    "Cannot change type of column to {} when it already has a0 default value with type {}",
+                    self.ty.variant(),
+                    default.ty().variant(),
+                );
+            }
+        }
+        self.ty = ty;
+        self
+    }
+
+    /// Changes whether this column will automatically increment for every new row.
+    ///
+    /// # Arguments
+    /// - `auto_increment`: Whether to enable this option or not.
+    ///
+    /// # Returns
+    /// Self for chaining.
+    #[inline]
+    pub fn auto_increment(mut self, auto_increment: impl AsPrimitive<bool>) -> Self {
+        self.auto_increment = auto_increment.as_();
+        self
+    }
+
+    /// Changes whether this column can have NULL in or not.
+    ///
+    /// # Arguments
+    /// - `not_null`: Whether to enable this option or not. Note that this is _reversed_ (i.e., enter `false` to allow NULL).
+    ///
+    /// # Returns
+    /// Self for chaining.
+    #[inline]
+    pub fn not_null(mut self, not_null: impl AsPrimitive<bool>) -> Self {
+        self.not_null = not_null.as_();
+        self
+    }
+
+    /// Changes whether new rows will be instantiated with a default value.
+    ///
+    /// # Arguments
+    /// - `value`: If [`Some`], then the column will be instantiated with this value; else, enter [`None`].
+    ///
+    /// # Returns
+    /// Self for chaining.
+    ///
+    /// # Panics
+    /// If the type of the given value does not match the type of the column, this function will panic.
+    #[inline]
+    pub fn default(mut self, default: Option<Value>) -> Self {
+        if let Some(default) = &default {
+            if !default.ty().compatible_with(&self.ty) {
+                panic!("Cannot give a value of type {} as default value for a column with type {}", default.ty().variant(), self.ty.variant());
+            }
+        }
+        self.default = default;
+        self
+    }
+}
+impl ToSql for ColumnDef {
+    #[inline]
+    fn fmt_sql(&self, f: &mut Formatter) -> FResult {
+        // Write the name
+        write!(f, "\"{}\" ", self.name)?;
+        // Write the type
+        self.ty.fmt_sql(f)?;
+        // Write any options
+        if self.auto_increment {
+            write!(f, " AUTO_INCREMENT")?;
+        }
+        if self.not_null {
+            write!(f, " NOT NULL")?;
+        }
+        if let Some(default) = &self.default {
+            write!(f, " DEFAULT ")?;
+            default.fmt_sql(f)?;
+        }
+
+        // Ok!
+        Ok(())
     }
 }
 
@@ -202,6 +360,44 @@ pub enum Type {
     Blob(usize),
     /// Defines a Character Large Object of the given number of characters that is larger than a single allowed column width thingy.
     Clob(usize),
+}
+impl Type {
+    /// Returns whether this Type is compatible with the given Type (i.e., they trivially cast to each other).
+    ///
+    /// # Arguments
+    /// - `other`: The other type to compare compatability with.
+    ///
+    /// # Returns
+    /// Whether this type casts into the other.
+    pub fn compatible_with(&self, other: &Type) -> bool {
+        use Type::*;
+        match (self, other) {
+            // Booleans are castable to any numeric type
+            (Boolean, BigInt | BigIntUnsigned | Int | IntUnsigned | SmallInt | SmallIntUnsigned | TinyInt | TinyIntUnsigned | Float(_) | Real) => {
+                true
+            },
+
+            // Smaller ints cast to larger ints
+            (TinyInt, SmallInt | Int | BigInt)
+            | (TinyIntUnsigned, SmallIntUnsigned | IntUnsigned | BigIntUnsigned)
+            | (SmallInt, Int | BigInt)
+            | (SmallIntUnsigned, IntUnsigned | BigIntUnsigned)
+            | (Int, BigInt)
+            | (IntUnsigned, BigIntUnsigned) => true,
+
+            // Ints cast to reals
+            (TinyInt | TinyIntUnsigned | SmallInt | SmallIntUnsigned | Int | IntUnsigned | BigInt | BigIntUnsigned, Float(_) | Real) => true,
+
+            // Strings cast to each other if their size permits
+            (Character(llen) | VarChar(llen) | Clob(llen), Character(rlen) | VarChar(rlen) | Clob(rlen)) => *llen <= *rlen,
+
+            // Dates & Times upcast to DateTimes
+            (Date | Time, DateTime) => true,
+
+            // Otherwise, things that are equal to themselves are always compatible
+            (this, other) => this == other,
+        }
+    }
 }
 impl ToSql for Type {
     fn fmt_sql(&self, f: &mut Formatter) -> FResult {

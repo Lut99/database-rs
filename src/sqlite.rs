@@ -4,7 +4,7 @@
 //  Created:
 //    17 Dec 2023, 20:50:18
 //  Last edited:
-//    27 Dec 2023, 11:40:49
+//    30 Dec 2023, 12:13:01
 //  Auto updated?
 //    Yes
 //
@@ -23,7 +23,7 @@ pub use sqlite as backend;
 use sqlite::Connection;
 
 use crate::common::load_config_file;
-use crate::sql::Statement;
+use crate::sql::{serialize_sql, Statement};
 
 
 /***** ERRORS *****/
@@ -37,8 +37,8 @@ pub enum Error {
     /// The initialization code failed.
     InitFailed { path: PathBuf, err: Box<Self> },
 
-    /// Failed to create a new table.
-    CreateTable { query: String, err: sqlite::Error },
+    /// Failed to execute the given query.
+    ExecuteFailed { query: String, err: sqlite::Error },
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -48,7 +48,7 @@ impl Display for Error {
             DatabaseOpen { path, .. } => write!(f, "Failed to open database file '{}'", path.display()),
             InitFailed { path, .. } => write!(f, "Failed to initialize SQLite database file '{}'", path.display()),
 
-            CreateTable { query, .. } => write!(f, "Failed to create new table using statement '{query}'"),
+            ExecuteFailed { query, .. } => write!(f, "Failed to execute statement '{query}'"),
         }
     }
 }
@@ -60,7 +60,7 @@ impl error::Error for Error {
             DatabaseOpen { err, .. } => Some(err),
             InitFailed { err, .. } => Some(&**err),
 
-            CreateTable { err, .. } => Some(err),
+            ExecuteFailed { err, .. } => Some(err),
         }
     }
 }
@@ -160,12 +160,23 @@ impl Database {
 
     /// Executes the given SQL [`Statement`] on the backend.
     ///
-    /// Any results of the query are _discarded_.
+    /// Note that the query is serialized as-is. To use a prepared statement, see `Self::execute_prepared()`.
+    ///
+    /// Any results of the query are discarded. See `Self::query()` to send a statement and return the rows.
     ///
     /// # Arguments
     /// - `stmt`: The [`Statement`] to execute.
     ///
     /// # Errors
     /// This function errors if we failed to execute the given `stmt` for some reason.
-    pub fn execute(&self, stmt: impl Into<Statement>) -> Result<(), Error> { Ok(()) }
+    pub fn execute(&self, stmt: impl AsRef<Statement>) -> Result<(), Error> {
+        let stmt: &Statement = stmt.as_ref();
+
+        // Serialize directly and send
+        let query: String = serialize_sql(stmt).to_string();
+        match self.conn.execute(&query) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(Error::ExecuteFailed { query, err }),
+        }
+    }
 }
