@@ -4,7 +4,7 @@
 //  Created:
 //    27 Dec 2023, 11:33:39
 //  Last edited:
-//    30 Dec 2023, 12:16:23
+//    30 Dec 2023, 12:19:35
 //  Auto updated?
 //    Yes
 //
@@ -359,6 +359,8 @@ pub enum Type {
     Blob(usize),
     /// Defines a Character Large Object of the given number of characters that is larger than a single allowed column width thingy.
     Clob(usize),
+    /// Empty type.
+    Null,
 }
 impl Type {
     /// Returns whether this Type is compatible with the given Type (i.e., they trivially cast to each other).
@@ -393,6 +395,9 @@ impl Type {
             // Dates & Times upcast to DateTimes
             (Date | Time, DateTime) => true,
 
+            // Finally, NULL always upcasts to allow columns to have NULL
+            (Null, _) => true,
+
             // Otherwise, things that are equal to themselves are always compatible
             (this, other) => this == other,
         }
@@ -423,6 +428,7 @@ impl ToSql for Type {
 
             Blob(size) => write!(f, "BLOB({size})"),
             Clob(len) => write!(f, "BLOB({len})"),
+            Null => write!(f, "NULL"),
         }
     }
 }
@@ -467,6 +473,8 @@ pub enum Value {
     Blob(Vec<u8>),
     /// A large character object wrapped in a `Clob`.
     Clob(String),
+    /// Empty value.
+    Null,
 }
 impl Value {
     /// Returns the datatype of this value.
@@ -494,6 +502,7 @@ impl Value {
 
             Blob(b) => Type::Blob(b.len()),
             Clob(c) => Type::Clob(c.len()),
+            Null => Type::Null,
         }
     }
 }
@@ -519,6 +528,7 @@ impl ToSql for Value {
 
             Blob(_) => todo!(),
             Clob(c) => write!(fmt, "\"{c}\""),
+            Null => write!(fmt, "NULL"),
         }
     }
 }
