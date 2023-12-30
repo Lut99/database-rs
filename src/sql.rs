@@ -4,7 +4,7 @@
 //  Created:
 //    27 Dec 2023, 11:33:39
 //  Last edited:
-//    30 Dec 2023, 12:58:24
+//    30 Dec 2023, 13:02:55
 //  Auto updated?
 //    Yes
 //
@@ -256,7 +256,7 @@ impl ToSql for StatementCreateTable {
             if !first {
                 write!(f, ", ")?;
             }
-            write!(f, "UNIQUE KEY ({})", self.unique.iter().map(|u| format!("\"{u}\"")).collect::<Vec<String>>().join(", "))?;
+            write!(f, "UNIQUE ({})", self.unique.iter().map(|u| format!("\"{u}\"")).collect::<Vec<String>>().join(", "))?;
         }
 
         // Write the closing parenthesis, end
