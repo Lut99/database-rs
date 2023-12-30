@@ -4,7 +4,7 @@
 //  Created:
 //    27 Dec 2023, 11:33:39
 //  Last edited:
-//    30 Dec 2023, 12:19:35
+//    30 Dec 2023, 12:23:14
 //  Auto updated?
 //    Yes
 //
@@ -465,6 +465,8 @@ pub enum Value {
     String(String),
 
     // Datetime values
+    /// Special case of a datetime that refers to NOW.
+    CurrentTimestamp,
     /// Date and/or time value.
     DateTime(DateTime<Utc>),
 
@@ -498,6 +500,7 @@ impl Value {
 
             String(s) => Type::Character(s.len()),
 
+            CurrentTimestamp => Type::DateTime,
             DateTime(_) => Type::DateTime,
 
             Blob(b) => Type::Blob(b.len()),
@@ -524,6 +527,7 @@ impl ToSql for Value {
 
             String(s) => write!(fmt, "\"{s}\""),
 
+            CurrentTimestamp => write!(fmt, "CURRENT_TIMESTAMP"),
             DateTime(dt) => write!(fmt, "{}", dt.format("%Y-%m-%d %H:%M:%S")),
 
             Blob(_) => todo!(),
