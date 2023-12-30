@@ -4,7 +4,7 @@
 //  Created:
 //    17 Dec 2023, 20:50:18
 //  Last edited:
-//    30 Dec 2023, 12:52:03
+//    30 Dec 2023, 12:57:01
 //  Auto updated?
 //    Yes
 //
@@ -114,7 +114,7 @@ impl Database {
 
         // Attempt to open the connection
         debug!("Opening connection to '{}'...", path.display());
-        let conn: Connection = match sqlite::open(path) {
+        let conn: Connection = match sqlite::open(":memory:") {
             Ok(conn) => conn,
             Err(err) => return Err(Error::DatabaseOpen { path: path.into(), err }),
         };
