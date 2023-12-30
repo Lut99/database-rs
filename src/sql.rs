@@ -4,7 +4,7 @@
 //  Created:
 //    27 Dec 2023, 11:33:39
 //  Last edited:
-//    30 Dec 2023, 12:23:14
+//    30 Dec 2023, 12:38:18
 //  Auto updated?
 //    Yes
 //
@@ -121,6 +121,106 @@ pub struct StatementCreateTable {
     pub name: String,
     /// The definitions for each column in the table.
     pub cols: Vec<ColumnDef>,
+
+    /// Sets the primary key for this table if given.
+    pub primary_key: Option<String>,
+    /// A list of unique columns on this table.
+    pub unique:      Vec<String>,
+}
+impl StatementCreateTable {
+    /// Constructor for a StatementCreateTable.
+    ///
+    /// # Arguments
+    /// - `name`: The name of the table to add.
+    ///
+    /// # Returns
+    /// A new StatementCreateTable instance.
+    #[inline]
+    pub fn new(name: impl Into<String>) -> Self { Self { name: name.into(), cols: vec![], primary_key: None, unique: vec![] } }
+
+    /// Changes the name of this table.
+    ///
+    /// # Arguments
+    /// - `name`: A new name to change into.
+    ///
+    /// # Returns
+    /// Self for chaining.
+    #[inline]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    /// Adds a column to this table.
+    ///
+    /// # Arguments
+    /// - `col`: A new [`ColumnDef`] to add.
+    ///
+    /// # Returns
+    /// Self for chaining.
+    #[inline]
+    pub fn add_col(mut self, col: impl Into<ColumnDef>) -> Self {
+        self.cols.push(col.into());
+        self
+    }
+
+    /// Replaces all columns in this table.
+    ///
+    /// # Arguments
+    /// - `cols`: An iterator returning the new [`ColumnDef`] to set.
+    ///
+    /// # Returns
+    /// Self for chaining.
+    #[inline]
+    pub fn cols(mut self, cols: impl IntoIterator<Item = ColumnDef>) -> Self {
+        self.cols = cols.into_iter().collect();
+        self
+    }
+
+    /// Marks a particular columns as the primary key for this table.
+    ///
+    /// This marks that that specific column is unique, and that it can be used as primary index in this table.
+    ///
+    /// # Arguments
+    /// - `primary_key`: If [`Some`], determines which column is the primary one. If [`None`], no primary key is set.
+    ///
+    /// # Returns
+    /// Self for chaining.
+    ///
+    /// # Panics
+    /// This function may panic if the given column is not yet defined.
+    #[inline]
+    pub fn primary_key(mut self, primary_key: Option<String>) -> Self {
+        if let Some(primary_key) = &primary_key {
+            if self.cols.iter().find(|c| &c.name == primary_key).is_none() {
+                panic!("Cannot mark unknown column '{primary_key}' as primary key");
+            }
+        }
+        self.primary_key = primary_key;
+        self
+    }
+
+    /// Denotes a particular column as unique.
+    ///
+    /// Note that this adds a unique column to the list. If you want to override it, change the internal variable `unique` directly.
+    ///
+    /// # Arguments
+    /// - `name`: The name of the column to mark as unique.
+    ///
+    /// # Returns
+    /// Self for chaining.
+    ///
+    /// # Panics
+    /// This function may panic if the given column is not yet defined.
+    #[inline]
+    pub fn unique(mut self, name: impl Into<String>) -> Self {
+        let name: String = name.into();
+        if self.cols.iter().find(|c| c.name == name).is_none() {
+            panic!("Cannot make unknown column '{name}' unique");
+        }
+        self.unique.push(name);
+        self
+    }
 }
 impl ToSql for StatementCreateTable {
     fn fmt_sql(&self, f: &mut Formatter) -> FResult {
@@ -139,6 +239,24 @@ impl ToSql for StatementCreateTable {
 
             // Write the column definition
             col.fmt_sql(f)?;
+        }
+
+        // Mark any primary key
+        if let Some(primary_key) = &self.primary_key {
+            if first {
+                first = true;
+            } else {
+                write!(f, ", ")?;
+            }
+            write!(f, "PRIMARY KEY (\"{primary_key}\")")?;
+        }
+
+        // Mark any unique keys
+        if !self.unique.is_empty() {
+            if !first {
+                write!(f, ", ")?;
+            }
+            write!(f, "UNIQUE KEY ({})", self.unique.iter().map(|u| format!("\"{u}\"")).collect::<Vec<String>>().join(", "))?;
         }
 
         // Write the closing parenthesis, end
