@@ -4,7 +4,7 @@
 //  Created:
 //    17 Dec 2023, 20:50:18
 //  Last edited:
-//    30 Dec 2023, 12:57:01
+//    30 Dec 2023, 12:57:44
 //  Auto updated?
 //    Yes
 //
@@ -109,12 +109,10 @@ impl Database {
 
         // See if the database exists or not
         let run_init: bool = !path.exists();
-        println!("Does path '{}' exist? {}", path.display(), if path.exists() { "yes" } else { "no" });
-        println!("Accordingly, `run_init` is... {run_init}");
 
         // Attempt to open the connection
         debug!("Opening connection to '{}'...", path.display());
-        let conn: Connection = match sqlite::open(":memory:") {
+        let conn: Connection = match sqlite::open(path) {
             Ok(conn) => conn,
             Err(err) => return Err(Error::DatabaseOpen { path: path.into(), err }),
         };
