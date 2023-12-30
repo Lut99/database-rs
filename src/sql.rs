@@ -4,7 +4,7 @@
 //  Created:
 //    27 Dec 2023, 11:33:39
 //  Last edited:
-//    30 Dec 2023, 12:11:57
+//    30 Dec 2023, 12:16:23
 //  Auto updated?
 //    Yes
 //
@@ -17,7 +17,6 @@ use std::fmt::{Display, Formatter, Result as FResult};
 
 use chrono::{DateTime, Utc};
 use enum_debug::EnumDebug;
-use num_traits::AsPrimitive;
 
 
 /***** SERIALIZATION *****/
@@ -232,8 +231,8 @@ impl ColumnDef {
     /// # Returns
     /// Self for chaining.
     #[inline]
-    pub fn auto_increment(mut self, auto_increment: impl AsPrimitive<bool>) -> Self {
-        self.auto_increment = auto_increment.as_();
+    pub fn auto_increment(mut self, auto_increment: bool) -> Self {
+        self.auto_increment = auto_increment;
         self
     }
 
@@ -245,8 +244,8 @@ impl ColumnDef {
     /// # Returns
     /// Self for chaining.
     #[inline]
-    pub fn not_null(mut self, not_null: impl AsPrimitive<bool>) -> Self {
-        self.not_null = not_null.as_();
+    pub fn not_null(mut self, not_null: bool) -> Self {
+        self.not_null = not_null;
         self
     }
 

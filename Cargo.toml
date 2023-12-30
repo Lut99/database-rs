@@ -21,9 +21,9 @@ toml = "0.8"
 
 
 [features]
-mysql = [ "dep:mysql", "sql" ]
+mysql = [ "dep:mysql", "dep:num-traits", "sql" ]
 mysql-native-tls = [ "mysql", "mysql/native-tls" ]
 mysql-rustls-tls = [ "mysql", "mysql/rustls-tls" ]
 sqlite = [ "dep:sqlite", "sql" ]
 
-sql = [ "dep:chrono", "dep:enum-debug", "dep:num-traits" ]
+sql = [ "dep:chrono", "dep:enum-debug" ]
